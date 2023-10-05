@@ -15,7 +15,6 @@ class Translate(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.path="config/translate.yaml"
-        
         self.translate_channel_list={
             int(os.getenv("DISCORD_SERVER_ID")): {}
         } # 翻訳対象Channel List
@@ -62,6 +61,12 @@ class Translate(commands.Cog):
     )
     @commands.guild_only()
     async def start_translate(self, ctx, main: str, sub: str):
+        """
+        main: str
+            ja, zh, en, ko, th
+        sub: str
+            ja, zh, en, ko, th
+        """
         if (
             ctx.author == self.bot.user or                       # 自身を除外
             self.bot.stop                                        # 緊急モード
@@ -147,7 +152,9 @@ class Translate(commands.Cog):
     def translate_jp(self, text):
         lang = self.translator_google.detect(text).lang
         
-        if lang == "ko":
+        if "zh" in lang:
+            return self.translator_papago(text, source=lang, dest="ja")
+        if "ko" in lang:
             return self.translator_papago(text, source=lang, dest="ja")
         else :
             # それ以外はDeepLを使用する
@@ -156,29 +163,32 @@ class Translate(commands.Cog):
 
     def translate_ch(self, text):
         lang = self.translator_google.detect(text).lang
-        
-        if lang == "ko":
-            return self.translator_papago(text, source=lang, dest="zh")
-        else :
-            # それ以外はDeepLを使用する
-            txt = self.translator_deepl.translate_text(text, target_lang="zh").text
-            return self.translator_google.translate(txt, dest="zh-tw").text
+        return self.translator_papago(text, source=lang, dest="zh-TW")        
 
 
     def translate_en(self, text):
-        return self.translator_deepl.translate_text(text, target_lang="EN-US").text
+        lang = self.translator_google.detect(text).lang
+        
+        if "zh" in lang:
+            return self.translator_papago(text, source=lang, dest="en")
+        if "ko" in lang:
+            return self.translator_papago(text, source=lang, dest="en")
+        else:
+            return self.translator_deepl.translate_text(text, target_lang="EN-US").text
+    
     
     def translate_kr(self, text):
         lang = self.translator_google.detect(text).lang
         return self.translator_papago(text, source=lang, dest="ko")
+    
     
     def translate_th(self, text):
         return self.translator_google.translate(text, dest="th").text
 
 
     def translator_papago(self, text, source, dest):
-        client_id = self.config['translate']['papago']['client_id']
-        client_secret = self.config['translate']['papago']['client_secret']
+        client_id = os.getenv("PAPAGO_CLIENT_ID")
+        client_secret = os.getenv("PAPAGO_CLIENT_SECRET")
         
         header = {"X-Naver-Client-Id":client_id,
                 "X-Naver-Client-Secret":client_secret}
