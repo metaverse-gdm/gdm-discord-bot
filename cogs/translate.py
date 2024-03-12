@@ -99,12 +99,12 @@ class Translate(commands.Cog):
         
     # [コマンド] 翻訳切り替え    
     @commands.hybrid_command(
-        name = "end_translate",
+        name = "stop_translate",
         description = "Stop translating on this channel",
         with_app_command = True
     )
     @commands.guild_only()
-    async def end_translate(self, ctx):
+    async def stop_translate(self, ctx):
         if (
             ctx.author == self.bot.user or                       # 自身を除外
             self.bot.stop                                        # 緊急モード

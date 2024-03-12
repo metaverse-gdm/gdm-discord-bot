@@ -56,8 +56,9 @@ class Pomodoro(commands.Cog):
         
         msg = await ctx.send(content=f"{time}\n<t:{remain_time}:R>")
         self.msg_id = msg.id
+        local_msg_id = msg.id
         
-        self.voice_client.play(discord.FFmpegPCMAudio("audio/se01.mp3"))
+        self.voice_client.play(discord.FFmpegPCMAudio("../assets/sound/se01.mp3"))
         
         while self.voice_client.is_connected():
             for i in range(len(time_list)):
@@ -65,16 +66,28 @@ class Pomodoro(commands.Cog):
                 
                 remain_time = int(tm.time()) + time_list[i] * 60
                 time_string = ",".join([f"**[{item}]**" if j == i else str(item) for j, item in enumerate(time_list)])
-                edited_message = await ctx.fetch_message(self.msg_id)
+                
+                edited_message = await ctx.fetch_message(local_msg_id)
                 await edited_message.edit(content=f"{time_string}\n<t:{remain_time}:R>")
                 
                 await asyncio.sleep(time_list[i]*60)
-                if not self.voice_client.is_connected(): break
+                
+                if await self.is_message_deleted(ctx, local_msg_id): return
+                if not self.voice_client.is_connected(): return
+                
                 self.voice_client.play(discord.FFmpegPCMAudio("audio/se01.mp3"))
             
-        edited_message = await ctx.fetch_message(self.msg_id)
+        edited_message = await ctx.fetch_message(local_msg_id)
         await edited_message.edit(content=f"終了")
             
+            
+    async def is_message_deleted(self, ctx, message_id):
+        try:
+            await ctx.fetch_message(message_id) 
+            return False 
+        except:
+            return True
+        
         
     # [コマンド] 翻訳切り替え    
     @commands.hybrid_command(
