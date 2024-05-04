@@ -11,6 +11,15 @@ class AddRole(commands.Cog):
         self.bot = bot
         self.path="config/add_role.yaml"
         self.read()
+        self.word_list = [
+            "姓名",
+            "名前",
+            "役割",
+            "紹介",
+            "居住",
+            "興趣",
+            "ひとこと"
+        ]
     
     # 読み込み
     def read(self):
@@ -37,6 +46,10 @@ class AddRole(commands.Cog):
             message.channel.id != self.config["channel_id"] # 特定のチャンネル以外を除外
         ):
             return  
+        
+        # 自己紹介のキーワードが含まれているかチェック
+        if not any(word in message.content for word in self.word_list):
+            return
         
         # Roleが付与されているかチェック
         role = message.guild.get_role(self.config["role_id"])
