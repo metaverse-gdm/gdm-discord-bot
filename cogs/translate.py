@@ -1,11 +1,8 @@
 import os
-import deepl
+import requests
 from discord.ext import commands
-from googletrans import Translator
 import re
 import yaml
-import json
-import requests
 import emoji
 import discord
 from dotenv import load_dotenv
@@ -13,6 +10,7 @@ load_dotenv(".env")
 
 class Translate(commands.Cog):    
     def __init__(self, bot):
+        self.base_url = "http://localhost:8011"
         self.bot = bot
         self.path="config/translate.yaml"
         self.translate_channel_list={
@@ -20,8 +18,6 @@ class Translate(commands.Cog):
         } # 翻訳対象Channel List
         self.read()
         
-        self.translator_deepl = deepl.Translator(os.getenv("DEEPL_API_KEY"))
-        self.translator_google= Translator()        
         self.pattern = "https?://[\w/:%#\$&\?\(\)~\.=\+\-]+"
         self.translate_text ={
             "ja": self.translate_jp,
@@ -30,7 +26,6 @@ class Translate(commands.Cog):
             "th": self.translate_th,
             "en": self.translate_en
         }
-
 
     # 読み込み
     def read(self):
@@ -137,7 +132,7 @@ class Translate(commands.Cog):
         if self.is_only_emoji(message.content):
             return
         
-        lang = self.translator_google.detect(message.content).lang
+        lang = self.detect_language(message.content)
         channel_data = self.translate_channel_list[message.guild.id][message.channel.id]
         
         result = message.content
@@ -146,71 +141,54 @@ class Translate(commands.Cog):
         else:
             result = self.translate_text[channel_data["main"]](message.content)
                 
+        if result == None or result == "": return
         await message.channel.send(result)
     
     
-    def translate_jp(self, text):
-        lang = self.translator_google.detect(text).lang
+    def detect_language(self, text):
+        url = f"{self.base_url}/detect"
+        payload = {"text": text}
+        headers = {"Content-Type": "application/json"}
         
-        if "zh" in lang:
-            return self.translator_papago(text, source=lang, dest="ja")
-        if "ko" in lang:
-            return self.translator_papago(text, source=lang, dest="ja")
-        else :
-            # それ以外はDeepLを使用する
-            return self.translator_deepl.translate_text(text, target_lang="JA").text
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code == 200:
+            return response.json()["detected_language"]
+        else:
+            return "en"  # デフォルトの言語
+
+
+    def translate_jp(self, text):
+        return self.translate_text_api(text, "ja")
 
 
     def translate_ch(self, text):
-        lang = self.translator_google.detect(text).lang
-        return self.translator_papago(text, source=lang, dest="zh-TW")        
+        return self.translate_text_api(text, "zh-TW")
 
 
     def translate_en(self, text):
-        lang = self.translator_google.detect(text).lang
-        
-        if "zh" in lang:
-            return self.translator_papago(text, source=lang, dest="en")
-        if "ko" in lang:
-            return self.translator_papago(text, source=lang, dest="en")
-        else:
-            return self.translator_deepl.translate_text(text, target_lang="EN-US").text
-    
-    
+        return self.translate_text_api(text, "en")
+
+
     def translate_kr(self, text):
-        lang = self.translator_google.detect(text).lang
-        return self.translator_papago(text, source=lang, dest="ko")
-    
-    
+        return self.translate_text_api(text, "ko")
+
+
     def translate_th(self, text):
-        return self.translator_google.translate(text, dest="th").text
+        return self.translate_text_api(text, "th")
 
 
-    def translator_papago(self, text, source, dest):
-        client_id = os.getenv("PAPAGO_CLIENT_ID")
-        client_secret = os.getenv("PAPAGO_CLIENT_SECRET")
+    def translate_text_api(self, text, target_lang):
+        url = f"{self.base_url}/translate"
+        payload = {"text": text, "dest_lang": target_lang}
+        headers = {"Content-Type": "application/json"}
         
-        header = {"X-Naver-Client-Id":client_id,
-                "X-Naver-Client-Secret":client_secret}
-        
-        url = "https://openapi.naver.com/v1/papago/n2mt" # API url
-        
-        
-        
-        data = {'text' : text,
-                'source' : source,
-                'target': dest} # translate to Korean
-
-        response = requests.post(url, headers=header, data=data)
-        rescode = response.status_code
-
-        if(rescode==200):
-            t_data = response.json()        
-            return t_data['message']['result']['translatedText']
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code == 200:
+            return response.json()["translated_text"]
         else:
-            print("n2mt Error Code:" , rescode) 
-        
-        
+            return text
+
+
     # 絵文字のみか判定を行う
     def is_only_emoji(self, text):            
         text = emoji.replace_emoji(text, replace='')

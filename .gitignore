@@ -4,3 +4,4 @@ config/*
 logs/voice_channel.log
 cogs/join_leave.py
 audio/*
+archives/
