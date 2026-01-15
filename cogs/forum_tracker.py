@@ -12,10 +12,8 @@ class ForumTracker(commands.Cog):
         self.bot = bot
         self.target_forum_id = int(os.getenv("DISCORD_TARGET_FORUM_ID", "0"))
         self.timestamp_pattern = re.compile(r"<t:(\d+):[a-zA-Z]>")
-        # 保存先のパス
         self.file_path = "logs/forum_records.json"
         
-        # 起動時にディレクトリがなければ作成
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
 
     @commands.Cog.listener()
@@ -28,9 +26,14 @@ class ForumTracker(commands.Cog):
             return
 
         try:
-            # 最初のメッセージを取得（少し待機が必要な場合があるためfetch）
+            # 最初のメッセージを取得（投稿内容と投稿者情報を取得）
             first_msg = await thread.fetch_message(thread.id)
             content = first_msg.content
+            
+            # 投稿者情報の取得
+            author = first_msg.author
+            author_name = author.display_name # サーバー内の名前
+            author_id = author.id             # ユーザーID
 
             match = self.timestamp_pattern.search(content)
             
@@ -38,46 +41,51 @@ class ForumTracker(commands.Cog):
                 unix_timestamp = match.group(1)
                 full_tag = match.group(0)
                 
-                # JSONに記録
-                await self.record_to_json(thread.id, thread.name, unix_timestamp, full_tag)
-                print(f"[Record] Saved to JSON: {thread.name}")
+                await self.record_to_json(
+                    thread_id=thread.id, 
+                    title=thread.name, 
+                    timestamp=unix_timestamp, 
+                    full_tag=full_tag,
+                    author_name=author_name,
+                    author_id=author_id
+                )
+                print(f"[Record] Saved to JSON: {thread.name} by {author_name}")
             else:
                 print(f"[Log] No timestamp found in thread: {thread.name}")
 
         except Exception as e:
             print(f"Error fetching forum post: {e}")
 
-    async def record_to_json(self, thread_id, title, timestamp, full_tag):
+    async def record_to_json(self, thread_id, title, timestamp, full_tag, author_name, author_id):
         """
-        JSONファイルに配列形式で追記する
+        JSONファイルに配列形式で追記する（投稿者情報を含む）
         """
         new_data = {
             "thread_id": thread_id,
             "title": title,
+            "author": {
+                "name": author_name,
+                "id": author_id
+            },
             "timestamp": int(timestamp),
-            "full_tag": full_tag
+            "full_tag": full_tag,
+            "created_at": discord.utils.utcnow().isoformat()
         }
 
         data = []
 
-        # 1. 既存のデータを読み込む
         if os.path.exists(self.file_path):
             try:
                 with open(self.file_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if not isinstance(data, list): # 配列でない場合は初期化
+                    if not isinstance(data, list):
                         data = []
             except json.JSONDecodeError:
-                # ファイルが空や壊れている場合は空リストから開始
                 data = []
 
-        # 2. データを追加
         data.append(new_data)
 
-        # 3. ファイルに書き戻す
         with open(self.file_path, "w", encoding="utf-8") as f:
-            # indent=4 で人間が見やすい形式にする
-            # ensure_ascii=False で日本語の文字化けを防ぐ
             json.dump(data, f, indent=4, ensure_ascii=False)
 
 def setup(bot):
